@@ -3,7 +3,6 @@
 #
 # Author: Thirumal Venkat
 
-import os
 import sys
 
 # Debug flag (set false during production)
@@ -163,7 +162,8 @@ res_keywords = [
 # The routine to tokenize all tokens
 def tokenize(line):
     unwanted_tokens = ['', ',']
-    return [x.strip(' \t,') for x in line.upper().split() if x not in unwanted_tokens]
+    return [x.strip(' \t,') for x in line.upper().split() \
+                if x not in unwanted_tokens]
 
 # Routine to process labels
 def process_label(token):
@@ -175,7 +175,7 @@ def process_label(token):
     # Append the extracted label onto the labels list
     ltuple = (token, line_no)
     labels.append(ltuple)
-    if Debug: print "\tLB:", ltuple
+    if Debug: print "\tLabel:", ltuple
 
 # Routine to process data elements
 def process_data(line):
@@ -191,7 +191,7 @@ def process_data(line):
         print "%d: Blank data" % line_no
         sys.exit(1)
     # Now play the guessing game of what type of data we're dealing with
-    if Debug: print "\tData:", line, " Length: ", len(line)
+    if Debug: print "\tRaw Data:", line, " Length: ", len(line)
     try:
         if line.startswith('"'): # String
             if line.endswith('"'):
@@ -219,25 +219,30 @@ def process_data(line):
         print "%s: Invalid data: %s" % (line_no, line)
         sys.exit(1)
     else:
-        print "\tParsed data:", data
+        print "\tParsed value:", data
         # TODO: write_to_memory(data)
     return offset_incr
 
 # Routine to process each instruction
-def process_instr(fout, line):
+def process_instr(line):
     global byte_offset
     # Print debug message
-    if Debug: print "Line: ", line_no, ": ", line
+    if Debug:
+        print "Line ", line_no, ": ",
+        if line[-1] == '\n':
+            print line[:-1]
+        else:
+            print line
     # Remove comments
     line = line.split(';')[0].strip()
     # If there's nothing to process, then return now
     if len(line) == 0: return
     # If debug enabled, print the line without comments
-    if Debug: print "\tNC:", line
+    if Debug: print "\tClean:", line
     # Now tokenize the line
     tokens = tokenize(line)
     # Filter stuff out
-    if Debug: print "\tTK:", tokens
+    if Debug: print "\tTokens:", tokens
     for token in tokens:
         # If a label process it
         if token.startswith(':'):
@@ -247,7 +252,7 @@ def process_instr(fout, line):
             byte_offset += process_data(line)
         elif token in opcodes:
             pass
-        # TODO: Implement SET by looking at the test cases
+            # TODO: Implement SET by looking at the test cases
 
 # Main assembler routine
 # 1. Opens the input file
@@ -268,18 +273,18 @@ def assemble():
         # Open the assembly input file
         fname = sys.argv[1]
     with open(fname, 'r') as fin:
-        # Open the binary file to be outputted
-        with open(os.path.splitext(os.path.basename(fname))[0] + '.out', 'wb') \
-            as fout:
-            # 1. Read all lines of the source code
-            # 2. Strip all whitespaces
-            # 3. Make them all upper case
-            #    We only have uppercase instructions and variable names
-            instructions = fin.readlines()
-            # Process each line (instruction)
-            for instr in instructions:
-                line_no += 1
-                process_instr(fout, instr)
+        # 1. Read all lines of the source code
+        # 2. Strip all white spaces
+        # 3. Make them all upper case
+        #    We only have upper case instructions and variable names
+        instructions = fin.readlines()
+        # Process each line (instruction)
+        for instr in instructions:
+            line_no += 1
+            process_instr(instr)
+
+    # Open the binary file to be filled
+    # TODO: Write memory into file
 
 # Main routine, star execution here
 if __name__ == '__main__':

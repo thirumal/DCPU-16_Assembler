@@ -1,2 +1,2 @@
-# DCPU-16_Assembler
-DCPU-16 Assembler in Python
+# DCPU-16 Assembler
+DCPU-16 Assembler written in Python
