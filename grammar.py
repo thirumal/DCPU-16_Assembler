@@ -1,152 +1,67 @@
-# Try to import pyparsing and fail if not possible
-import sys
+from itertools import izip_longest
 
-try:
-    import pyparsing as p
-except ImportError:
-    print 'Please install pyparsing using the following command:'
-    print 'easy_install pyparsing'
-    sys.exit(1)
+import pyparsing as p
 
-# An identifier can alphanumeric and _, but is should start with an alphabet
-identifier = p.Word(p.alphas + '_', p.alphanums + '_')
+# don't mark \n as a delimeter, we need to parse an entire line as one entity
+p.ParserElement.setDefaultWhitespaceChars(" \t")
 
-# Label starts with : and is an identifer
-label = p.Combine(p.Literal(':').suppress() + identifier)
+identifier = p.Word(p.alphas + "_", p.alphanums + "_")
 
-# Comment starts with ; <anything else>
-comment = p.Literal(';').suppress() + p.restOfLine
+label = p.Combine(p.Literal(":").suppress() + identifier)
 
-# Registers
-register = p.oneOf('A B C X Y Z I J SP PC O', caseless = True)
-register.addParseAction(p.upcaseTokens)
+comment = p.Literal(";").suppress() + p.restOfLine
 
-#Stack operations
-stack_ops = p.oneOf('PEEK POP PUSH', caseless = True)
-stack_ops.addParseAction(p.upcaseTokens)
+register = p.oneOf("A B C I J X Y Z O PC SP", caseless=True).addParseAction(p.upcaseTokens)
 
-# Hexadecimal number
-hex_prefix = p.Or(p.Literal('0x') | p.Literal('0X'))
-hex_literal = p.Combine(hex_prefix + p.Word(p.hexnums))
-hex_literal.setParseAction(lambda s, l, t: int(t[0], 16))
+stack_op = p.oneOf("PEEK POP PUSH", caseless=True).addParseAction(p.upcaseTokens)
 
-# Decimal Number
-dec_literal = p.Word(p.nums)
-dec_literal.setParseAction(lambda s, l, t: int(t[0]))
+hex_literal = p.Combine(p.Literal("0x") + p.Word(p.hexnums)).setParseAction(lambda s, l, t: int(t[0], 16))
+dec_literal = p.Word(p.nums).setParseAction(lambda s, l, t: int(t[0]))
 
-# A Numeric literal is either hexa decimal or decimal
 numeric_literal = hex_literal | dec_literal
 
-# A literal is an identifier  or a numerical literal
 literal = numeric_literal | identifier
 
-# Opcodes
-opcode = p.oneOf('SET '
-                 'ADD SUB '
-                 'MUL DIV MOD '
-                 'SHL SHR '
-                 'AND BOR XOR '
-                 'IFE IFN IFG IFB'
-                 'JSR', caseless= True)
-opcode.addParseAction(p.upcaseTokens)
+opcode = p.oneOf("SET ADD SUB MUL DIV MOD SHL SHR AND BOR XOR IFE IFN IFG IFB JSR", caseless=True).addParseAction(p.upcaseTokens)
 
-# Operand consists of either a register, stack operation or a literal
-basic_operand = (register('register') \
-                | stack_ops('stack_ops') \
-                | literal('literal'))
+basic_operand = p.Group(register("register") | stack_op("stack_op") | literal("literal"))
 
-# An indirect expression will have <LITERAL> + <REGISTER>
-indirect_expr = literal('literal') \
-                + p.Literal('+') \
-                + register('register')
+indirect_expr = p.Group(literal("literal") + p.Literal("+") + register("register"))
 
-indirection = p.Literal('[').suppress() \
-              + (indirect_expr('indirect_expr') \
-                 | basic_operand('basic_operand')) \
-              + p.Literal(']').suppress()
-              
-operand = basic_operand('basic_operand') | indirection('indirection')
+indirection_content = indirect_expr("expr") | basic_operand("basic")
+
+indirection = p.Group(p.Literal('[').suppress() + indirection_content + p.Literal(']').suppress())
+
+operand = basic_operand("basic") | indirection("indirect")
 
 def make_words(data):
-    '''
-    Name: make_words
-    Purpose: Make 16-bit words out of list of 8-bit integers
-    data - string of integers
-    data[::2] - integers at index 0,2,4,6,...
-    data[1::2]- integers at index 1,3,5,7,...
-    Result: [data[0] << 8 | data[1], data[2] << 8 | data[3],...]
-    '''
-    try:
-        from itertools import izip_longest
-    except ImportError:
-        from itertools import zip_longest as izip_longest
-    res = []
-    for a,b in izip_longest(data[::2], data[1::2], fillvalue = 0):
-        word = a << 8 | b
-        res.append(word)
-    return res
+    return [a << 8 | b for a, b in izip_longest(data[::2], data[1::2], fillvalue=0)]
 
-def make_string_words(string, loc, tokens):
-    '''
-    Name: make_string_words
-    Purpose: Make words out of strings instead of 8-bit integers
-    tokens: Tokens to be processed
-    string, loc - ignored!
-    Returns list of 16-bit words of integers (string converted into ascii ints)
-    '''
-    return make_words([ord(c) for c in tokens.string])
 
-# Quoted string in data
-quoted_string = p.quotedString('string')
-quoted_string.addParseAction(p.removeQuotes)
-quoted_string.addParseAction(make_string_words)
+def make_string_words(s, l, tokens):
+    mybytes = [ord(c) for c in tokens.string]
+    packed = False
+    return make_words(bytes) if packed else mybytes
 
-# One data item can be either a string or a numeric literal
+quoted_string = p.quotedString("string").addParseAction(p.removeQuotes).addParseAction(make_string_words)
 datum = quoted_string | numeric_literal
 
 def parse_data(string, loc, tokens):
-    '''
-    Name: parse_data
-    Purpose: Parses data passed as tokens
-    string, loc = ignored
-    tokens = tokens to be parsed
-    Returns: Parsed data as datum rules
-    '''
-    res = []
+    result = []
     for token in tokens:
         values = datum.parseString(token).asList()
-        for v in values:
-            if v > 0xffff:
-                raise Exception("Datum exceeds word size")
-        res.extend(values)
-    return res
+        assert all(v <= 0xFFFF for v in values), "Datum exceeds word size"
+        result.extend(values)
+    return result
 
-# Parser for comma seperated list of data
-datalist = p.commaSeparatedList
-datalist.setParseAction(parse_data)
+datalist = p.commaSeparatedList.copy().setParseAction(parse_data)
 
-# The entire data string with DAT in the front
-data = p.CaselessKeyword("DAT") + p.Group(datalist)
+data = p.CaselessKeyword("DAT")("opcode") + p.Group(datalist)("data")
 
-instruction = p.Group(opcode("opcode")
-               + p.Group(operand("first"))
-               + p.Optional(p.Literal(',').suppress() +
-                            p.Group(operand('second')))
-)
+instruction = (opcode("opcode") + p.Group(operand)("first") + p.Optional(p.Literal(",").suppress() + p.Group(operand)("second")))
 
-# All statements are either instructions or data
-# statement = instruction('instruction') | data('data')
-statement = instruction('instruction') | data('data')
+statement = p.Group(instruction | data)
 
-# The entire line
-line = p.Group(p.Optional(label('label')) \
-               + p.Optional(statement('statement'), default = None) \
-               + p.Optional(comment('comment')) \
-               + p.LineEnd())('line')
+line = p.Group(p.Optional(label("label")) + p.Optional(statement("statement"), default=None) + p.Optional(comment("comment")) + p.lineEnd.suppress())("line")
 
-# The entire grammar
-full_grammar =  p.ZeroOrMore(line)
-
-blue = full_grammar.parseString('\n:bad2 dat 123\n:bad2 dat 234')
-
-print blue
+full_grammar = p.ZeroOrMore(line)('program')
