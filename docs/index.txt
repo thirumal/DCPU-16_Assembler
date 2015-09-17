@@ -1,0 +1,4 @@
+The specification for the DCPU-16 is NOT FINAL, and can change at any time.
+To read a specification, click the links to the right.
+
+The specifications are written in character as ingame lore.
