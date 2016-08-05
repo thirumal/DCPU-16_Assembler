@@ -11,7 +11,7 @@
 ; Do a loopy thing
               SET I, 10
               SET A, 0x2000
-:loop         SET [0x2000+I], [A]
+:loop         SET [I + 0x2000], [A]
               SUB I, 1
               IFN I, 0
               SET PC, loop

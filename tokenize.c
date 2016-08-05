@@ -144,7 +144,8 @@ static inline void save_global_pos_tok(struct assembler *a, struct token *t) {
     t->tok_col = a->inp_col;
 }
 
-static inline void restore_global_pos_tok(struct assembler *a, struct token *t) {
+static inline void restore_global_pos_tok(struct assembler *a,
+                                          struct token *t) {
     a->inp_offset = t->tok_pos;
     a->inp_row = t->tok_row;
     a->inp_col = t->tok_col;
@@ -203,7 +204,8 @@ static int strcmp_token(struct assembler *a,
 
 // go past the current token, we keep going forward till we meet one of
 // the delimiters.
-static inline uint64_t go_past_cur_token_delim(struct assembler *a, char delims[]) {
+static inline uint64_t go_past_cur_token_delim(struct assembler *a,
+                                               char delims[]) {
     uint64_t counter = 0;
     char c, *s;
     while ((c = cur_char(a)) != '\0') {
@@ -300,7 +302,8 @@ static inline void skip_whitespaces_and_comments(struct assembler *a) {
 }
 
 // get a label if found. Returns 1 on success, 0 on not found
-static inline int getif_label(struct assembler *a, struct token *tok, int has_prefix) {
+static inline int getif_label(struct assembler *a, struct token *tok,
+                              int has_prefix) {
     struct label *l;
     char *s;
     int i;
@@ -334,16 +337,16 @@ static inline int getif_label(struct assembler *a, struct token *tok, int has_pr
     }
     s = l->lbl_name;
     // check label start
-    if (!isalpha(s[0])) {
-        // not starting with an alphabet
+    if (!isalpha(s[0]) && s[0] != '_') {
+        // not starting with an alphabet or underscore
         restore_global_pos_tok(a, tok);
-        ASMTOKERROR(a, tok, "Label does not start with alphabet");
+        ASMTOKERROR(a, tok, "Label does not start with alphabet or underscore");
         return -1;
     }
     // check rest of the label
     for (i = 1; i < l->lbl_len; ++i) {
-        if (!isalnum(s[i])) {
-            // has characters that are not alphabet or number
+        if (!isalnum(s[i]) && s[i] != '_') {
+            // has characters that are not alphabet or number or underscore
             restore_global_pos_tok(a, tok);
             ASMTOKERROR(a, tok, "Label contains non-alphanumeric characters");
             return -1;
@@ -402,7 +405,7 @@ static inline int getif_data(struct assembler *a, struct token *t) {
         skip_inline_whitespaces(a);
         // sanity check to see if we've not gone past EOF or newline
         if (!cur_char(a)) {
-            ASMTOKERROR(a, t, "Unexpected end of file while searching for data");
+            ASMTOKERROR(a, t, "Unexpected EOF while searching for data");
             return -1;
         } else if (cur_char(a) == '\n') {
             ASMTOKERROR(a, t, "Unexpected newline while searching for data");
@@ -485,10 +488,10 @@ static inline int getif_ind_reg(struct assembler *a,
     // see if we match the register...
     skip_inline_whitespaces(a);
     if (!cur_char(a)) {
-        ASMERROR(a, "Unexpected end of file while searching for ']'");
+        ASMERROR(a, "Unexpected end of file while searching for a register");
         return -1;
     } else if (cur_char(a) == '\n') {
-        ASMERROR(a, "Unexpected new line while searching for ']'");
+        ASMERROR(a, "Unexpected new line while searching for a register");
         return -1;
     }
     if (strcmp_token(a, ot->caps, DELIM_INDIRECT_END) < 0 &&
@@ -557,13 +560,13 @@ static inline int getif_ind_reg_literal(struct assembler *a,
     // skip inline whitespaces if any...
     skip_inline_whitespaces(a);
     if (!cur_char(a)) {
-        ASMERROR(a, "Unexpected end of file while searching for '+'");
+        ASMERROR(a, "Unexpected end of file while searching for a '+'");
         return -1;
     } else if (cur_char(a) == '\n') {
-        ASMERROR(a, "Unexpected new line while searching for '+'");
+        ASMERROR(a, "Unexpected new line while searching for a '+'");
         return -1;
     } else if (cur_char(a) != '+') {
-        ASMERROR(a, "Unexpected character while searching for '+'");
+        ASMERROR(a, "Unexpected character while searching for a '+'");
     }
     inc_char(a);
 
@@ -621,10 +624,10 @@ static inline int getif_reg_literal(struct assembler *a,
     // check to see if we match a register
     skip_inline_whitespaces(a);
     if (!cur_char(a)) {
-        ASMERROR(a, "Unexpected end of file while searching for ']'");
+        ASMERROR(a, "Unexpected end of file while searching for a register");
         return -1;
     } else if (cur_char(a) == '\n') {
-        ASMERROR(a, "Unexpected new line while searching for ']'");
+        ASMERROR(a, "Unexpected new line while searching for a register");
         return -1;
     }
     if (strcmp_token(a, ot->caps, DELIM_INLINE_WS) < 0 &&
@@ -637,10 +640,10 @@ static inline int getif_reg_literal(struct assembler *a,
     // see if we can get a number..
     skip_inline_whitespaces(a);
     if (!cur_char(a)) {
-        ASMERROR(a, "Unexpected end of file while searching for ']'");
+        ASMERROR(a, "Unexpected end of file while searching for number");
         return -1;
     } else if (cur_char(a) == '\n') {
-        ASMERROR(a, "Unexpected new line while searching for ']'");
+        ASMERROR(a, "Unexpected new line while searching for a number");
         return -1;
     }
     rc = getif_number(a, &num);
@@ -681,10 +684,10 @@ static inline int getif_ind_literal(struct assembler *a,
     // see if we can get a number..
     skip_inline_whitespaces(a);
     if (!cur_char(a)) {
-        ASMERROR(a, "Unexpected end of file while searching for ']'");
+        ASMERROR(a, "Unexpected end of file while searching for a number");
         return -1;
     } else if (cur_char(a) == '\n') {
-        ASMERROR(a, "Unexpected new line while searching for ']'");
+        ASMERROR(a, "Unexpected new line while searching for a number");
         return -1;
     }
     rc = getif_number(a, &num);
@@ -739,7 +742,8 @@ static inline int getif_literal(struct assembler *a,
 
 
 // 0 on success, -1 on failure
-static inline int append_to_unresolved_labels(struct assembler *a, struct token *tok) {
+static inline int append_to_unresolved_labels(struct assembler *a,
+                                              struct token *tok) {
     struct label *l = &tok->ttu_lab, *cur;
     int found;
     switch (l->lbl_state) {
@@ -770,10 +774,12 @@ static inline int append_to_unresolved_labels(struct assembler *a, struct token 
             }
             // error out, if we have found a duplicate label
             if (found) {
-                // LOL, reporting this error is a bit bothersome, but has to be done..
+                // LOL, reporting this error is a bit bothersome,
+                // but has to be done..
                 char err_str[256];
                 struct token *t2 = label_to_token(cur);
-                snprintf(err_str, 256, "Found duplicate label at (%llu:%llu)", t2->tok_row, t2->tok_col);
+                snprintf(err_str, 256, "Found duplicate label at (%llu:%llu)",
+                         t2->tok_row, t2->tok_col);
                 ASMTOKERROR(a, tok, err_str);
                 return -1;
             }
@@ -939,7 +945,8 @@ int construct_tokens(struct assembler *a) {
                 free(t);
                 return rc;
             }
-            // valid label with : prefix.. add it to global unresolved label pointers
+            // valid label with : prefix..
+            // add it to global unresolved label pointers
             append_to_unresolved_labels(a, t);
         } else if ((rc = getif_data(a, t)) != 0) {
             if (rc < 0) {
@@ -955,11 +962,13 @@ int construct_tokens(struct assembler *a) {
             // skip inline whitespace, check for end of file/newline
             skip_inline_whitespaces(a);
             if (!cur_char(a)) {
-                ASMERROR(a, "Unexpected end of file while searching for ']'");
+                ASMERROR(a, "Unexpected end of file while searching "
+                        "for an operand");
                 free(t);
                 return -1;
             } else if (cur_char(a) == '\n') {
-                ASMERROR(a, "Unexpected new line while searching for ']'");
+                ASMERROR(a, "Unexpected new line while searching "
+                        "for an operand");
                 free(t);
                 return -1;
             }
@@ -986,12 +995,14 @@ int construct_tokens(struct assembler *a) {
             // skip inline whitespace, check for end of file/newline
             skip_inline_whitespaces(a);
             if (!cur_char(a)) {
-                ASMERROR(a, "Unexpected end of file while searching for ']'");
+                ASMERROR(a, "Unexpected end of file while searching "
+                        "for a comma delimiter");
                 free(t1);
                 free(t);
                 return -1;
             } else if (cur_char(a) == '\n') {
-                ASMERROR(a, "Unexpected new line while searching for ']'");
+                ASMERROR(a, "Unexpected new line while searching "
+                        "for a comma delimiter");
                 free(t1);
                 free(t);
                 return -1;
@@ -1009,12 +1020,14 @@ int construct_tokens(struct assembler *a) {
             // skip inline whitespace, check for end of file/newline
             skip_inline_whitespaces(a);
             if (!cur_char(a)) {
-                ASMERROR(a, "Unexpected end of file while searching for ']'");
+                ASMERROR(a, "Unexpected end of file while searching "
+                        "for an operand");
                 free(t1);
                 free(t);
                 return -1;
             } else if (cur_char(a) == '\n') {
-                ASMERROR(a, "Unexpected new line while searching for ']'");
+                ASMERROR(a, "Unexpected new line while searching "
+                        "for an operand");
                 free(t1);
                 free(t);
                 return -1;
@@ -1054,11 +1067,13 @@ int construct_tokens(struct assembler *a) {
             // skip inline whitespace, check for end of file/newline
             skip_inline_whitespaces(a);
             if (!cur_char(a)) {
-                ASMERROR(a, "Unexpected end of file while searching for ']'");
+                ASMERROR(a, "Unexpected end of file while searching "
+                        "for an operand");
                 free(t);
                 return -1;
             } else if (cur_char(a) == '\n') {
-                ASMERROR(a, "Unexpected new line while searching for ']'");
+                ASMERROR(a, "Unexpected new line while searching "
+                        "for an operand");
                 free(t);
                 return -1;
             }

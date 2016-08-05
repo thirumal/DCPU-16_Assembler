@@ -14,19 +14,22 @@
 #define LOGERROR(fmt, ...) \
     do { \
         fprintf(stderr, "[%s:%s:%d,%d] "fmt"\n", \
-                basename(__FILE__), __func__, __LINE__, errno, ##__VA_ARGS__); \
+                basename(__FILE__), __func__, __LINE__, \
+                errno, ##__VA_ARGS__); \
     } while (0)
 
 #define ASMERROR(a, message) \
     do { \
         fprintf(stderr, "%s:%llu:%llu %s\n", \
-                basename(a->input_file), a->inp_row + 1, a->inp_col + 1, message); \
+                basename(a->input_file), a->inp_row + 1, \
+                a->inp_col + 1, message); \
     } while (0)
 
 #define ASMTOKERROR(a, t, message) \
     do { \
         fprintf(stderr, "%s:%llu:%llu %s\n", \
-            basename(a->input_file), t->tok_row + 1, t->tok_col + 1, message); \
+            basename(a->input_file), t->tok_row + 1, \
+            t->tok_col + 1, message); \
     } while (0)
 
 enum operand_type {
@@ -167,8 +170,8 @@ struct assembler {
     uint64_t inp_size;
     char *input;
     char *input_file;
-    struct label_list label_pts;        // labels whose offsets have been determined
-    struct label_list label_ops;        // unresolved label which are operands
+    struct label_list label_pts;   // labels whose offsets have been determined
+    struct label_list label_ops;   // unresolved labels which are operands
     struct token_list tok_list;
     struct bcode_list bcd_list;
 };

@@ -21,7 +21,8 @@ static inline void label_concat(char *dst, char *src, uint64_t len) {
     dst[i] = '\0';
 }
 
-static inline void append_to_bcode_list(struct assembler *a, struct bcode_node *node) {
+static inline void append_to_bcode_list(struct assembler *a,
+                                        struct bcode_node *node) {
     if (a->bcd_list.tail) {
         a->bcd_list.tail->next = node;
         a->bcd_list.tail = node;
@@ -30,7 +31,9 @@ static inline void append_to_bcode_list(struct assembler *a, struct bcode_node *
     }
 }
 
-static inline struct label *get_label_pointer(struct assembler *a, char *lbl_name, uint64_t lbl_len) {
+static inline struct label *get_label_pointer(struct assembler *a,
+                                              char *lbl_name,
+                                              uint64_t lbl_len) {
     struct label *cur;
     for (cur = a->label_pts.head; cur; cur = cur->next) {
         // easy check on label lengths
@@ -48,8 +51,9 @@ static inline struct label *get_label_pointer(struct assembler *a, char *lbl_nam
 
 // String representation: op b, a.
 // Notice operand 'a' has no right token
-// NOTE: lbl_off is in bytes, while placing it convert it into words (divide by 2)
-int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16_t *operand, uint8_t *has_opd) {
+// NOTE: lbl_off is in bytes, while placing it convert it into words (/ by 2)
+int build_operand(struct assembler *a, struct token *t, uint16_t *opcode,
+                  uint16_t *operand, uint8_t *has_opd) {
     // decide if the operand is operand A or operand B
     int is_a = !t->right;
     // calculate the amount of left-shift needed
@@ -57,7 +61,8 @@ int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16
     // decide on how to build the operand depending on what it is..
     if (t->type == tt_label) {
         // we have a label
-        struct label *lptr = get_label_pointer(a, t->ttu_lab.lbl_name, t->ttu_lab.lbl_len);
+        struct label *lptr = get_label_pointer(a, t->ttu_lab.lbl_name,
+                                               t->ttu_lab.lbl_len);
         if (!lptr) {
             char err_str[256];
             err_str[0] = '\0';
@@ -92,7 +97,7 @@ int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16
             // place the label's offset as 0 in a separate word
             *opcode |= (OPERAND_OP_MAX << shift);
             *operand = 0;
-            // Tell the label operand that it should be placing the offset here...
+            // Tell the label operand that it should be placing the offset here
             t->ttu_lab.lbl_bcp = operand;
             // we've used up the two bytes in the operand...
             *has_opd = 1;
@@ -257,12 +262,13 @@ int build_data(struct assembler *a, struct token *t) {
 }
 
 // pass #1: Build binary code.
-//        * Assume any label that has not been resolved yet to exceed offset of 0x20
-//        * If label pointer is found at a place give it an offset.
-//        * If label operand is found then find the label pointer
-//            * If the label pointer has been resolved create opcode (short or long)
-//            * If the label pointer has not been resolved. Allocate 1 word for label offset
-//            * If the label pointer is not found, raise an error
+//   * Assume any label that has not been resolved yet to exceed offset of 0x20
+//   * If label pointer is found at a place give it an offset.
+//   * If label operand is found then find the label pointer
+//     * If the label pointer has been resolved create opcode (short or long)
+//     * If the label pointer has not been resolved.
+//       Allocate 1 word for label offset
+//     * If the label pointer is not found, raise an error
 int pass1(struct assembler *a) {
     uint64_t tot_off = 0; // current offset in code
     int cur_off;
@@ -273,14 +279,16 @@ int pass1(struct assembler *a) {
     for (t = a->tok_list.head; t; t = t->next) {
         switch (t->type) {
             case tt_label:
-                // update the label's offset from the start of file and mark as resolved.
+                // update the label's offset from the start of file
+                // and mark as resolved.
                 l = &t->ttu_lab;
                 if (l->lbl_state != ls_pt_unresolved) {
                     // Internal error
                     char err_str[256];
                     err_str[0] = 0;
                     label_concat(err_str, l->lbl_name, l->lbl_len);
-                    LOGERROR("PASS1: Label %s has been resolved or is not a label pointer.", err_str);
+                    LOGERROR("PASS1: Label %s has been resolved or "
+                                     "is not a label pointer.", err_str);
                     return -1;
                 }
 
@@ -340,7 +348,8 @@ int pass2(struct assembler *a) {
                 // it is yet to be resolved, resolve it
                 ptr = get_label_pointer(a, cur->lbl_name, cur->lbl_len);
                 if (!ptr) {
-                    // There is no corresponding label pointer for this label operand
+                    // There is no corresponding label pointer for
+                    // this label operand
                     char err_str[256];
                     err_str[0] = '\0';
                     strcat(err_str, "PASS2: Label '");
@@ -352,11 +361,13 @@ int pass2(struct assembler *a) {
                 }
                 // verify sanity of label pointer
                 if (ptr->lbl_state != ls_pt_resolved) {
-                    LOGERROR("The label pointer is yet to be resolved even after PASS1");
+                    LOGERROR("The label pointer is yet to be "
+                                     "resolved even after PASS1");
                     return -1;
                 }
-                // place the label's offset into the pointer in this label's bcode_node
-                // after converting offset in bytes into words (dividing by 2)
+                // place the label's offset into the pointer in
+                // this label's bcode_node after converting offset
+                // in bytes into words (dividing by 2)
                 *cur->lbl_bcp = (uint16_t ) (ptr->lbl_off / 2);
                 break;
             case ls_op_resolved:

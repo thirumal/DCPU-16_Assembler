@@ -2,10 +2,13 @@
 #include <stdio.h>
 #include "assembler.h"
 
-// TODO: Support literal in front of register in register indirect literal addressing
-//       For example as of today we support "SET [A + 0x200]", 20 but not "SET [0x200 + A], 20"
+// TODO: Support literal after a register in "register indirect literal mode"
+//       For example as of today we support "SET [A + 0x200]",
+//       20 but not "SET [0x200 + A], 20"
 // TODO: Support list of numbers and strings as data
-//       As of today we just support string data as
+//       As of today we just support a single string enclosed in quotes.
+//       Future plan is to allow something like the regular expression below
+//       DAT (<num> | <str>) (, [<num> | <str>])+
 
 int main(int argc, char *argv[]) {
     struct assembler a[1];

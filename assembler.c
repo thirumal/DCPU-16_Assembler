@@ -118,12 +118,6 @@ int asm_parse(struct assembler *a) {
         return -1;
     }
     // pass #1: Build binary code.
-    //        * Assume any label that has not been resolved yet to exceed offset of 0x20
-    //        * If label pointer is found at a place give it an offset.
-    //        * If label operand is found then find the label pointer
-    //            * If the label pointer has been resolved create opcode (short or long)
-    //            * If the label pointer has not been resolved. Allocate 1 word for label offset
-    //            * If the label pointer is not found, raise an error
     if (pass1(a) < 0) {
         return -1;
     }
