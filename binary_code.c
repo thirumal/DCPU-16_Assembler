@@ -49,7 +49,7 @@ static inline struct label *get_label_pointer(struct assembler *a, char *lbl_nam
 // String representation: op b, a.
 // Notice operand 'a' has no right token
 // NOTE: lbl_off is in bytes, while placing it convert it into words (divide by 2)
-int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16_t *operand) {
+int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16_t *operand, uint8_t *has_opd) {
     // decide if the operand is operand A or operand B
     int is_a = !t->right;
     // calculate the amount of left-shift needed
@@ -71,19 +71,21 @@ int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16
             // Mark this label as resolved :-)
             t->ttu_lab.lbl_state = ls_op_resolved;
             t->ttu_lab.lbl_off = lptr->lbl_off;
-            if (lptr->lbl_off <= 0x1E) {
+            if (lptr->lbl_off / 2 <= 0x1E) {
                 // NOTE: As offset can't be negative we did not
                 // check for lptr->lbl_off >= -1
                 // Place the label's offset in the opcode itself
                 *opcode |= ((lptr->lbl_off / 2 + 0x21) << shift);
                 *operand = 0;
                 // we did not use the two bytes in the operand...
+                *has_opd = 0;
                 return 0;
             } else {
                 // place the label's offset in a separate word
                 *opcode |= (OPERAND_OP_MAX << shift);
                 *operand = (uint16_t) (lptr->lbl_off / 2);
                 // we've used up the two bytes in the operand...
+                *has_opd = 1;
                 return 2;
             }
         } else if (lptr->lbl_state == ls_pt_unresolved) {
@@ -93,6 +95,7 @@ int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16
             // Tell the label operand that it should be placing the offset here...
             t->ttu_lab.lbl_bcp = operand;
             // we've used up the two bytes in the operand...
+            *has_opd = 1;
             return 2;
         } else {
             LOGERROR("Invalid label pointer state: %d", lptr->lbl_state);
@@ -111,12 +114,14 @@ int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16
                     *opcode |= ((opd->opd_literal_val + 0x21) << shift);
                     *operand = 0;
                     // did not used the spare operand provided..
+                    *has_opd = 0;
                     return 0;
                 } else {
                     // short hand literal notation cannot be used
                     *opcode |= (opd->opd_opcode_val << shift);
                     *operand = (uint16_t) opd->opd_literal_val;
-                    // used the spare operand provided..
+                    // we used up the spare operand provided..
+                    *has_opd = 1;
                     return 2;
                 }
             case ot_reg:
@@ -131,12 +136,14 @@ int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16
                     *opcode |= (opd->opd_opcode_val << shift);
                     *operand = 0;
                     // we did not use the extra operand passed
+                    *has_opd = 0;
                     return 0;
                 } else {
                     // we have operand opcode + a literal value
                     *opcode |= (opd->opd_opcode_val << shift);
                     *operand = (uint16_t) opd->opd_literal_val;
                     // we have used up the extra operand passed
+                    *has_opd = 1;
                     return 2;
                 }
             default:
@@ -154,7 +161,8 @@ int build_operand(struct assembler *a, struct token *t, uint16_t *opcode, uint16
 // opcode binary is [0xOPCODE] [0xOPA] [0xOPB]
 int build_opcode(struct assembler *a, struct token *t) {
     struct bcode_node *node;
-    uint16_t *opcode, *opd_a, *opd_b;
+    uint16_t *opcode, *opd_a, *opd_b, *operand;
+    uint8_t *has_a, *has_b, *has_opd;
     int len;
     // sanity check
     if (t->type == tt_basic_opcode) {
@@ -187,11 +195,24 @@ int build_opcode(struct assembler *a, struct token *t) {
     opcode = &node->btu_code[0];
     opd_a  = &node->btu_code[1];
     opd_b  = &node->btu_code[2];
+    has_a  = &node->btu_c_has_a;
+    has_b  = &node->btu_c_has_b;
     // Copy the opcode
-    *opcode = (uint16_t) t->ttu_opc;
+    if (t->type == tt_basic_opcode) {
+        *opcode = (uint16_t) t->ttu_opc;
+    } else {
+        *opcode = (uint16_t) t->ttu_opc << OPERAND_B_LSHIFT;
+    }
     node->size = 2; /* 16-bit opcode, hence size is 2 */
     // copy the first operand
-    len = build_operand(a, t->right, opcode, (t->type == tt_basic_opcode ? opd_b : opd_a));
+    if (t->type == tt_basic_opcode) {
+        operand = opd_b;
+        has_opd = has_b;
+    } else {
+        operand = opd_a;
+        has_opd = has_a;
+    }
+    len = build_operand(a, t->right, opcode, operand, has_opd);
     if (len < 0) {
         free(node);
         return -1;
@@ -199,7 +220,9 @@ int build_opcode(struct assembler *a, struct token *t) {
     node->size += len;
     // copy the second operand if present
     if (t->type == tt_basic_opcode) {
-        len = build_operand(a, t->right->right, opcode, opd_a);
+        operand = opd_a;
+        has_opd = has_a;
+        len = build_operand(a, t->right->right, opcode, operand, has_opd);
         if (len < 0) {
             free(node);
             return -1;
@@ -357,8 +380,14 @@ int bcode_debug(struct assembler *a) {
         switch (cur->type) {
             case bt_code:
                 // Code
-                for (i = 0; i < cur->size / 2; ++i) {
-                    printf(" %04x", cur->btu_code[i]);
+                printf(" %04x", cur->btu_code[0]);
+                ++offset;
+                if (cur->btu_c_has_a) {
+                    printf(" %04x", cur->btu_code[1]);
+                    ++offset;
+                }
+                if (cur->btu_c_has_b) {
+                    printf(" %04x", cur->btu_code[2]);
                     ++offset;
                 }
                 putchar('\n');

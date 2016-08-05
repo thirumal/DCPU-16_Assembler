@@ -138,13 +138,19 @@ struct bcode_node {
     uint64_t size;
     /* Binary code */
     union {
-        uint16_t  bcode[3]; /* Upto 3 words of binary data */
+        struct {
+            uint8_t has_a;     /* Are we using register A */
+            uint8_t has_b;     /* Are we using register B */
+            uint16_t bcode[3]; /* Upto 3 words of binary data */
+        } s;
         char     *bdata;    /* Pointer to binary data */
     } u;
     /* Next binary list code entry */
     struct bcode_node *next;
 };
-#define btu_code u.bcode
+#define btu_c_has_a u.s.has_a
+#define btu_c_has_b u.s.has_b
+#define btu_code u.s.bcode
 #define btu_data u.bdata
 
 /* Binary code structure */
