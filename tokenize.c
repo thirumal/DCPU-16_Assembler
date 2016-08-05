@@ -541,10 +541,10 @@ static inline int getif_ind_reg_literal(struct assembler *a,
     // check to see if we match a register
     skip_inline_whitespaces(a);
     if (!cur_char(a)) {
-        ASMERROR(a, "Unexpected end of file while searching for ']'");
+        ASMERROR(a, "Unexpected end of file while searching for register");
         return -1;
     } else if (cur_char(a) == '\n') {
-        ASMERROR(a, "Unexpected new line while searching for ']'");
+        ASMERROR(a, "Unexpected new line while searching for register");
         return -1;
     }
     if (strcmp_token(a, ot->caps, DELIM_INDIRECT_MID) < 0 &&
@@ -570,10 +570,10 @@ static inline int getif_ind_reg_literal(struct assembler *a,
     // see if we can get a number..
     skip_inline_whitespaces(a);
     if (!cur_char(a)) {
-        ASMERROR(a, "Unexpected end of file while searching for ']'");
+        ASMERROR(a, "Unexpected end of file while searching for a number");
         return -1;
     } else if (cur_char(a) == '\n') {
-        ASMERROR(a, "Unexpected new line while searching for ']'");
+        ASMERROR(a, "Unexpected new line while searching for a number");
         return -1;
     }
     rc = getif_number(a, &num);
